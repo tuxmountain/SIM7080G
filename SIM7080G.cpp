@@ -23,42 +23,20 @@
   #define LCD_PRINTLN(x)
 #endif
 
-/*
-Ok maintenant ça fonctionne... mais il faudra quand même vérifié certain point demain...
-1. modifier SendData int et float
-2. TurnOn doit plutôt faire un boucle rapide d'envoie de commande AT jusqu'à ce qu'il obtienne une réponse
-3. ATZ au lancement de la connection serait pas mal
-4. Si CPIN? répond négativement, il faut essayer de reseter le modem et le relancer
-*/
 
 void SIM7080G::begin(HardwareSerial *serial, uint8_t RX, uint8_t TX) {
-  // Initialise la communication série avec les broches rxPin et txPin
+  // Initialize serial communication with rxPin and txPin pins
   _serial = serial;
   _serial->begin(115200, SERIAL_8N1, RX, TX);
 }
 
-// Pour les données de type float
-bool SIM7080G::SendData(const char* fieldName, float value) {
-  // Créez une chaîne JSON avec le champ et la valeur spécifiés
-  char jsonMessage[100]; // Augmentez la taille si nécessaire
-  snprintf(jsonMessage, sizeof(jsonMessage), "{\"%s\":%.2lf}", fieldName, (double)value); // Convertir en JSON la valeur
-
-  // Envoyez la longueur des données au serveur MQTT
-  int dataLength = strlen(jsonMessage);
-  String dataLengthStr = String(dataLength);
-
-  // Affichez un message de débogage avec les données JSON à envoyer
-  DEBUG_PRINTLN("Données JSON à envoyer : " + String(jsonMessage));
-
-  // Affichez un message de débogage avec la longueur des données
-  DEBUG_PRINTLN("Longueur des données : " + dataLengthStr);
-
+bool SIM7080G::SendPacketData(const char* jsonData) {
   // Envoyez les commandes AT nécessaires via la communication série configurée
   DEBUG_PRINTLN("Envoi des données via AT+SMPUB...");
   _serial->print("AT+SMPUB=\"v1/devices/me/telemetry\",");
-  _serial->print(dataLengthStr);
+  _serial->print(strlen(jsonData));
   _serial->println(",1,1");
-
+  delay(100);
   // Attendez une réponse du module
   String response;
   unsigned long start = millis();
@@ -84,54 +62,87 @@ bool SIM7080G::SendData(const char* fieldName, float value) {
     return false;
   }
 }
-// Pour les données de type int
+
+
+// For integer data
 bool SIM7080G::SendData(const char* fieldName, int value) {
-  // Créez une chaîne JSON avec le champ et la valeur spécifiés
-  char jsonMessage[100]; // Augmentez la taille si nécessaire
-  snprintf(jsonMessage, sizeof(jsonMessage), "{\"%s\":%d}", fieldName, value); // Convertir en JSON la valeur
+  // Create a JSON string with the specified field and integer value
+  String jsonMessage = "{\"" + String(fieldName) + "\":" + String(value) + "}";
 
-  // Envoyez la longueur des données au serveur MQTT
-  int dataLength = strlen(jsonMessage);
+  // Send the data length to the MQTT server
+  int dataLength = jsonMessage.length();
   String dataLengthStr = String(dataLength);
 
-  // Affichez un message de débogage avec les données JSON à envoyer
-  DEBUG_PRINTLN("Données JSON à envoyer : " + String(jsonMessage));
+  // Display a debug message with the JSON data to be sent
+  DEBUG_PRINTLN("JSON data to send: " + jsonMessage);
 
-  // Affichez un message de débogage avec la longueur des données
-  DEBUG_PRINTLN("Longueur des données : " + dataLengthStr);
+  // Display a debug message with the data length
+  DEBUG_PRINTLN("Data length: " + dataLengthStr);
 
-  // Envoyez les commandes AT nécessaires via la communication série configurée
-  DEBUG_PRINTLN("Envoi des données via AT+SMPUB...");
+  // Send the necessary AT commands via the configured serial communication
+  DEBUG_PRINTLN("Sending data via AT+SMPUB...");
   _serial->print("AT+SMPUB=\"v1/devices/me/telemetry\",");
   _serial->print(dataLengthStr);
   _serial->println(",1,1");
+  delay(20);
 
-  // Attendez une réponse du module
-  String response;
-  unsigned long start = millis();
-  while (1) {
-    if (_serial->available() || (millis() - start) < DELAY_TO_WAIT_RESPONSE) { // Attendre pendant 200 ms (ajustez selon vos besoins)
-      String str = _serial->readString();
-      response += str;
-    } else {
-      break;
-    }
-  }
+  // Use SendCommand to send the JSON string
+  String command = jsonMessage;
+  String response = SendCommand(command);
 
-  // Affichez la réponse du module
-  DEBUG_PRINTLN("Réponse du modem : " + response);
+  // Display the module's response
+  DEBUG_PRINTLN("Modem response: " + response);
 
-  // Si la réponse contient "OK", les données ont été envoyées avec succès
+  // If the response contains "OK," the data was sent successfully
   if (response.indexOf("OK") != -1) {
-    DEBUG_PRINTLN("Données envoyées avec succès !");
+    DEBUG_PRINTLN("Data sent successfully!");
     return true;
   } else {
-    // Échec de l'envoi des données
-    DEBUG_PRINTLN("Échec de l'envoi des données.");
+    // Data sending failed
+    DEBUG_PRINTLN("Data sending failed.");
     return false;
   }
 }
 
+// For floating-point data
+bool SIM7080G::SendData(const char* fieldName, float value) {
+  // Create a JSON string with the specified field and float value
+  String jsonMessage = "{\"" + String(fieldName) + "\":" + String(value, 2) + "}";
+
+  // Send the data length to the MQTT server
+  int dataLength = jsonMessage.length();
+  String dataLengthStr = String(dataLength);
+
+  // Display a debug message with the JSON data to be sent
+  DEBUG_PRINTLN("JSON data to send: " + jsonMessage);
+
+  // Display a debug message with the data length
+  DEBUG_PRINTLN("Data length: " + dataLengthStr);
+
+  // Send the necessary AT commands via the configured serial communication
+  DEBUG_PRINTLN("Sending data via AT+SMPUB...");
+  _serial->print("AT+SMPUB=\"v1/devices/me/telemetry\",");
+  _serial->print(dataLengthStr);
+  _serial->println(",1,1");
+  delay(20);
+
+  // Use SendCommand to send the JSON string
+  String command = jsonMessage;
+  String response = SendCommand(command);
+
+  // Display the module's response
+  DEBUG_PRINTLN("Modem response: " + response);
+
+  // If the response contains "OK," the data was sent successfully
+  if (response.indexOf("OK") != -1) {
+    DEBUG_PRINTLN("Data sent successfully!");
+    return true;
+  } else {
+    // Data sending failed
+    DEBUG_PRINTLN("Data sending failed.");
+    return false;
+  }
+}
 // Pour les données de type String
 bool SIM7080G::SendData(const char* fieldName, String value) {
   // Créez une chaîne JSON avec le champ et la valeur spécifiés
@@ -153,7 +164,7 @@ bool SIM7080G::SendData(const char* fieldName, String value) {
   _serial->print("AT+SMPUB=\"v1/devices/me/telemetry\",");
   _serial->print(dataLengthStr);
   _serial->println(",1,1");
-  delay(200);
+    delay(20);
   // Utilisez SendCommand pour envoyer la chaîne JSON
   String command = jsonMessage;
   String response = SendCommand(command);
@@ -179,129 +190,98 @@ bool SIM7080G::turnOn() {
   digitalWrite(IO_NBIOT_PWRKEY, HIGH); // Mettre la broche IO_NBIOT_PWRKEY à l'état HIGH
   delay(10); // Attendre 100 millisecondes
   digitalWrite(IO_NBIOT_PWRKEY, LOW); // Mettre la broche IO_NBIOT_PWRKEY à l'état LOW
-
-  // Affichez un message de débogage pour indiquer que le module SIM est en cours d'allumage
-  DEBUG_PRINTLN("Allumage du module SIM...");
-  String Test = "AT";
-  String response= (SendCommand(Test)); // Envoyer la commande AT
-  // Attendez une réponse du module
-  
-
-  // Affichez la réponse du module
-  DEBUG_PRINTLN("Réponse du modem : " + response);
-
-  // Si la réponse du module contient quelque chose, la communication est établie avec succès
-  if (!response.isEmpty()) {
-    DEBUG_PRINTLN("Module SIM allumé avec succès !");
-    return true;
-  } else {
-    // Échec de l'allumage du module
-    DEBUG_PRINTLN("Échec de l'allumage du module SIM.");
-    return false;
-  }
-}
-
-
-
-
-
-bool SIM7080G::connect(const char *apn, int UTC) {
-  // Établir la connexion au réseau avec l'APN spécifié
-  // Utilisez _serial pour communiquer avec le module
-
-  // 1. Configurez l'APN avec la commande AT+CGDCONT
-  String cgdccontCommand = "AT+CGDCONT=1,\"IP\",\"" + String(apn) + "\"";
-  DEBUG_PRINTLN("Configuration de l'APN : " + cgdccontCommand);
-  String resp = SendCommand(cgdccontCommand);
-  DEBUG_PRINTLN(resp);
-
-  // 2. Vérifiez si la carte SIM est prête avec la commande AT+CPIN?
-  String cpinCommand = "AT+CPIN?";
-  DEBUG_PRINTLN("Vérification de la carte SIM : " + cpinCommand);
-  String cpinResponse = SendCommand(cpinCommand);
-  DEBUG_PRINTLN(cpinResponse);
-  if (cpinResponse.indexOf("OK") == -1) {
-    // La carte SIM n'est pas prête, retournez une erreur
-    DEBUG_PRINTLN("Problème carte SIM");
-    return false;
-  }
-  
-   // 5. Activez la connexion avec la commande AT+CNACT
-  String cnactCommand = "AT+CNACT=0,1";
-  DEBUG_PRINTLN("Activation de la connexion GPRS : " + cnactCommand);
-  bool cnactSuccess = false;
- 
-  // Attendez jusqu'à 30 secondes pour obtenir +APP PDP: 0,ACTIVE
-  unsigned long cnactTimeout = millis() + 5000; // Timeout de 30 secondes
-  while (millis() < cnactTimeout) {
-    String cnactResponse = SendCommand(cnactCommand);
-    DEBUG_PRINTLN(cnactResponse);
-    if (cnactResponse.indexOf("+APP PDP: 0,ACTIVE") != -1) {
-      cnactSuccess = true;
-      break; // Connexion établie, sortie de la boucle
-    }
-    delay(500); // Attendez 0.5 seconde entre les tentatives
-  }
-
-  if (!cnactSuccess) {
-    // La connexion n'a pas pu être établie, retournez une erreur
-    DEBUG_PRINTLN("La connexion n'a pas pu être établie");
-    return false;
-  }
-
-  // 3. Activez l'attachement GPRS avec la commande AT+CGATT
-  String cgattCommand = "AT+CGATT?";
-  DEBUG_PRINTLN("Check if device is attached to the network : " + cgattCommand);
-  String response = SendCommand(cgattCommand);
-  DEBUG_PRINTLN(response);
-  
-  // 3. Activez l'attachement GPRS avec la commande AT+CGATT
-  cgattCommand = "AT+CNACT?";
-  DEBUG_PRINTLN("Check if the App network is active : " + cgattCommand);
-  response = SendCommand(cgattCommand);
-  DEBUG_PRINTLN(response);
-  
-  // 3. Activez l'attachement GPRS avec la commande AT+CGATT
-  cgattCommand = "AT+SMSTATE?";
-  DEBUG_PRINTLN("Check the connection stuts : " + cgattCommand);
-  response = SendCommand(cgattCommand);
-  DEBUG_PRINTLN(response);
-  
-  // 4. Obtenez le nom de l'opérateur avec la fonction getOperator
-  DEBUG_PRINTLN("Obtention du nom de l'opérateur...");
-  String operatorName = getOperator();
-  DEBUG_PRINTLN(operatorName);
-
-  // 6. Obtenez la force du signal avec getSignal
-  DEBUG_PRINTLN("Obtention de la force du signal...");
-  float Signal = getSignal();	
-  DEBUG_PRINTLN(Signal);
-  	
-  // 7. Obtenez l'IMEI avec getIMEI
-  DEBUG_PRINTLN("Obtention du numéro IMEI...");
-  String IMEI = getIMEI();	
-  DEBUG_PRINTLN(IMEI);
-
-  // 8. Vérifiez si la connexion au réseau est établie avec la commande AT+CGREG?
-  String cgregCommand = "AT+CGREG?";
-  DEBUG_PRINTLN("Vérification de la connexion au réseau : " + cgregCommand);
-  String cgregResponse = SendCommand(cgregCommand);
-  DEBUG_PRINTLN(cgregResponse);	
-  
-  if (cgregResponse.indexOf("OK") == -1) {
-    // La connexion n'est pas établie, retournez une erreur
-    DEBUG_PRINTLN("La connexion au réseau n'a pas pu être établie");
-    return false;
-  }
-
-  // 9. Obtenez l'heure actuelle en interrogeant le module
-  DEBUG_PRINTLN("Obtention de l'heure depuis le serveur NTP...");
-  String currentDateTime = getNTP(UTC);
-  DEBUG_PRINTLN(currentDateTime);	
-  // La connexion a été établie avec succès et l'heure a été synchronisée
-  DEBUG_PRINTLN("Connexion réussie !");
   return true;
 }
+
+
+
+void SIM7080G::turnOff() {
+  DEBUG_PRINTLN("Turn OFF SIMCOM 7080G Module");
+  // Switch off the modem using the modem's power button. Keep the button pressed for 3 seconds to switch off normally.
+  digitalWrite(IO_NBIOT_PWRKEY, HIGH); // Set IO_NBIOT_PWRKEY pin to HIGH state
+  delay(3000); // wait 3000 millisecondes
+  digitalWrite(IO_NBIOT_PWRKEY, LOW); // Set IO_NBIOT_PWRKEY pin to LOW state to avoid reboot.
+
+  DEBUG_PRINTLN("Modem is switching off");
+}
+
+
+
+bool SIM7080G::connect(const char *apn) {
+    // 1. Configurez l'APN avec la commande AT+CGDCONT
+      String cgdccontCommand = "AT+CGDCONT=1,\"IP\",\"" + String(apn) + "\"";
+      DEBUG_PRINTLN("Configuration de l'APN : " + cgdccontCommand);
+      String resp = SendCommand(cgdccontCommand);
+      DEBUG_PRINTLN(resp);
+
+      // 2. Vérifiez si la carte SIM est prête avec la commande AT+CPIN?
+      String cpinCommand = "AT+CPIN?";
+      DEBUG_PRINTLN("Vérification de la carte SIM : " + cpinCommand);
+      String cpinResponse = SendCommand(cpinCommand);
+      DEBUG_PRINTLN(cpinResponse);
+      if (cpinResponse.indexOf("OK") == -1) {
+        // La carte SIM n'est pas prête, retournez une erreur
+        DEBUG_PRINTLN("Problème carte SIM");
+        return false;
+      }
+
+       // 5. Activez la connexion avec la commande AT+CNACT
+      String cnactCommand = "AT+CNACT=0,1";
+      DEBUG_PRINTLN("Activation de la connexion GPRS : " + cnactCommand);
+      bool cnactSuccess = false;
+
+      // Attendez jusqu'à 30 secondes pour obtenir +APP PDP: 0,ACTIVE
+      unsigned long cnactTimeout = millis() + 5000; // Timeout de 30 secondes
+      while (millis() < cnactTimeout) {
+        String cnactResponse = SendCommand(cnactCommand);
+        DEBUG_PRINTLN(cnactResponse);
+        if (cnactResponse.indexOf("+APP PDP: 0,ACTIVE") != -1) {
+          cnactSuccess = true;
+          break; // Connexion établie, sortie de la boucle
+        }
+        delay(500); // Attendez 0.5 seconde entre les tentatives
+      }
+
+      if (!cnactSuccess) {
+        // La connexion n'a pas pu être établie, retournez une erreur
+        DEBUG_PRINTLN("La connexion n'a pas pu être établie");
+        return false;
+      }
+
+      // 3. Activez l'attachement GPRS avec la commande AT+CGATT
+      String cgattCommand = "AT+CGATT?";
+      DEBUG_PRINTLN("Check if device is attached to the network : " + cgattCommand);
+      String response = SendCommand(cgattCommand);
+      DEBUG_PRINTLN(response);
+
+      // 3. Activez l'attachement GPRS avec la commande AT+CGATT
+      cgattCommand = "AT+CNACT?";
+      DEBUG_PRINTLN("Check if the App network is active : " + cgattCommand);
+      response = SendCommand(cgattCommand);
+      DEBUG_PRINTLN(response);
+
+      // 3. Activez l'attachement GPRS avec la commande AT+CGATT
+      cgattCommand = "AT+SMSTATE?";
+      DEBUG_PRINTLN("Check the connection stuts : " + cgattCommand);
+      response = SendCommand(cgattCommand);
+      DEBUG_PRINTLN(response);
+
+
+      // 8. Vérifiez si la connexion au réseau est établie avec la commande AT+CGREG?
+      String cgregCommand = "AT+CGREG?";
+      DEBUG_PRINTLN("Vérification de la connexion au réseau : " + cgregCommand);
+      String cgregResponse = SendCommand(cgregCommand);
+      DEBUG_PRINTLN(cgregResponse);
+
+      if (cgregResponse.indexOf("OK") == -1) {
+        // La connexion n'est pas établie, retournez une erreur
+        DEBUG_PRINTLN("La connexion au réseau n'a pas pu être établie");
+        return false;
+      }
+
+      return true;
+}
+
 
 
 bool SIM7080G::checkNetworkRegistration() {
@@ -392,15 +372,15 @@ String SIM7080G::getIMEI() {
   response.replace("\n", ""); // Supprimez les sauts de ligne
   response.trim(); // Supprimez les espaces inutiles au début et à la fin
   int debutIndex = response.lastIndexOf(' ') +1;
-  
+
   if(debutIndex != -1) {
    String IMEI = response.substring(debutIndex);
-   
+
    // Supprimez les caractères indésirables du numéro IMEI
    IMEI.replace("AT+GSN", ""); // Supprimez "AT+GSN" du numéro IMEI
    IMEI.replace("OK", ""); // Supprimez "OK" du numéro IMEI
    IMEI.trim(); // Supprimez les espaces inutiles
-   
+
       return IMEI;
     }
 }
@@ -439,14 +419,11 @@ String SIM7080G::getNTP(int UTC) {
   String response = SendCommand(cclkQueryCommand);
 
   // Retournez la réponse du module, qui devrait contenir l'heure synchronisée
-    DEBUG_PRINTLN(response);	
+    DEBUG_PRINTLN(response);
     return response;
 }
 
-
-
-
-bool SIM7080G::connectTelemetry(const char *clientId, const char *username, const char *password, const char *url, int port) {
+bool SIM7080G::connectMQTT(const char *clientId, const char *username, const char *password, const char *url, int port) {
   // Configuration du serveur MQTT
 
   // 1. Configuration du client ID
@@ -479,22 +456,17 @@ bool SIM7080G::connectTelemetry(const char *clientId, const char *username, cons
   response = SendCommand(check);
   DEBUG_PRINTLN(response);
   if (response.indexOf("OK") != -1) {
-  	DEBUG_PRINTLN("Connection établie!");
-  	return true;
-  	} else {
-  	DEBUG_PRINTLN("Pas connecté, essaie à nouveau");
-  	return false;
-  	}
-
-  // 7. Envoi de données au serveur MQTT
-  String sendDataCommand = "AT+SMSUB=\"v1/devices/me/telemetry\",1";
-  response = SendCommand(sendDataCommand);
-  DEBUG_PRINTLN(response);
+    DEBUG_PRINTLN("Connection établie!");
+    return true;
+    } else {
+    DEBUG_PRINTLN("Pas connecté, essaie à nouveau");
+    return false;
+    }
 }
 
 
 String SIM7080G::SendCommand(String ATCommand) {
-  _serial->println(ATCommand); // Envoyer la commande AT
+  _serial->println(ATCommand); // Send the AT command
   String response;
   unsigned long start = millis();
   while (1) {
@@ -502,18 +474,209 @@ String SIM7080G::SendCommand(String ATCommand) {
       String str = _serial->readString();
       response += str;
       if (str.indexOf("OK") != -1 || str.indexOf("ERROR") != -1) {
-        // Si la réponse contient "OK" ou "ERROR", sortez de la boucle
+        // If the response contains "OK" or "ERROR," exit the loop
         break;
       }
     } else if ((millis() - start) >= DELAY_TO_WAIT_RESPONSE) {
-      // Si le délai d'attente est dépassé, sortez de la boucle
+      // If the timeout is reached, exit the loop
       break;
     }
   }
 
-  // Retourner la réponse complète pour traitement ultérieur
+  // Return the complete response for further processing
   return response;
 }
+
+  bool SIM7080G::quickAT(String ATCommand) {
+    _serial->println(ATCommand); // Send the AT command
+    String response;
+    unsigned long start = millis();
+    while (1) {
+      if (_serial->available()) {
+        char incomingChar = _serial->read(); // Read a character
+        if (isPrintable(incomingChar)) {
+          response += incomingChar; // Add the character to the response if printable
+        }
+        DEBUG_PRINT(incomingChar); // Display the received character
+        if (incomingChar == '\n') {
+          // Display the response when the line is completed
+          DEBUG_PRINT("Response: " + response);
+        }
+        if (response.indexOf("OK") != -1 || response.indexOf("ERROR") != -1) {
+          DEBUG_PRINTLN(); // Print a new line for readability
+          return true; // If the response contains "OK" or "ERROR," exit the loop
+        }
+      } else if ((millis() - start) >= 100) {
+        return false; // If the timeout is reached, exit the loop
+      }
+    }
+  }
+
+  bool SIM7080G::checkPower() {
+      _serial->println("AT+CPIN?"); // Envoyer la commande AT
+
+      String response;
+      bool firstResponse = true; // Ajouter un indicateur pour la première réponse
+      unsigned long start = millis();
+
+      while (1) {
+          if (_serial->available()) {
+              String str = _serial->readString();
+
+              // Vérifier si la réponse contient "OK" ou "ERROR"
+              if (str.indexOf("OK") != -1 || str.indexOf("ERROR") != -1) {
+                  // Si la réponse contient "OK" ou "ERROR", sortir de la boucle
+                  DEBUG_PRINT("Response: ");
+                  DEBUG_PRINTLN(str);
+                  return true;
+              }
+          } else if ((millis() - start) >= 500) { // Attendre 500 ms
+              // Si le délai est dépassé, tenter de redémarrer et sortir de la boucle
+              digitalWrite(IO_NBIOT_PWRKEY, HIGH); // Mettre la broche IO_NBIOT_PWRKEY à l'état HIGH
+              delay(10); // Attendre 10 millisecondes
+              digitalWrite(IO_NBIOT_PWRKEY, LOW); // Mettre la broche IO_NBIOT_PWRKEY à l'état LOW pour éviter le redémarrage
+              DEBUG_PRINT(".");
+              return false;
+          }
+      }
+  }
+
+
+  /* //////////////////////////////////////////////////////////////////////////////////////////////////////
+   *
+   * This part need to be adapted!!! It's still not working!
+   * I need to SUB with a request_ID... not sure how to PUBLISH...
+   *
+   * This part will be necessary for OTA update also... so very important but not time to do it now
+   *
+   * //////////////////////////////////////////////////////////////////////////////////////////////*/
+
+
+
+  bool SIM7080G::connectTopic(const char *topic) {
+    // MQTT Server Configuration
+
+    String sendDataCommand = "AT+SMSUB=\"" + String(topic) + "\",1";
+    String response = SendCommand(sendDataCommand);
+    DEBUG_PRINTLN(response);
+    if (response.indexOf("OK") != -1) {
+      DEBUG_PRINTLN("Connection established!");
+      return true;
+    } else {
+      DEBUG_PRINTLN("Not connected, trying again");
+      return false;
+    }
+
+  }
+
+  bool SIM7080G::unsubscribe(const char *topic) {
+      //unsubscribe from topic
+      String sendDataCommand = "AT+SMUNSUB=\"" + String(topic) +"\"";
+      String response = SendCommand(sendDataCommand);
+      DEBUG_PRINTLN(response);
+      if (response.indexOf("OK") != -1) {
+        DEBUG_PRINTLN("Unsubscribe from the topic!");
+        return true;
+      } else {
+        DEBUG_PRINTLN("Not unsubscribe, please trying again");
+        return false;
+      }
+  }
+
+  bool SIM7080G::disconnect() {
+      //unsubscribe from topic
+      String sendDataCommand = "AT+SMDISC";
+      String response = SendCommand(sendDataCommand);
+      DEBUG_PRINTLN(response);
+      if (response.indexOf("OK") != -1) {
+        DEBUG_PRINTLN("Disconnected!");
+        return true;
+      } else {
+        DEBUG_PRINTLN("Not disconnected, trying again");
+        return false;
+      }
+  }
+
+  // For integer data
+  bool SIM7080G::SendDataTopic(const char* fieldName, int value, const char* topic) {
+    // Create a JSON string with the specified field and integer value
+    String jsonMessage = "{\"" + String(fieldName) + "\":" + String(value) + "}";
+
+    // Send the data length to the MQTT server
+    int dataLength = jsonMessage.length();
+    String dataLengthStr = String(dataLength);
+
+    // Display a debug message with the JSON data to be sent
+    DEBUG_PRINTLN("JSON data to send: " + jsonMessage);
+
+    // Display a debug message with the data length
+    DEBUG_PRINTLN("Data length: " + dataLengthStr);
+
+    // Send the necessary AT commands via the configured serial communication
+    DEBUG_PRINTLN("Sending data via AT+SMPUB...");
+    _serial->print("AT+SMPUB=\"" + String(topic) + "\",");
+    _serial->print(dataLengthStr);
+    _serial->println(",1,1");
+    delay(100);
+
+    // Use SendCommand to send the JSON string
+    String command = jsonMessage;
+    String response = SendCommand(command);
+
+    // Display the module's response
+    DEBUG_PRINTLN("Modem response: " + response);
+
+    // If the response contains "OK," the data was sent successfully
+    if (response.indexOf("OK") != -1) {
+      DEBUG_PRINTLN("Data sent successfully!");
+      return true;
+    } else {
+      // Data sending failed
+      DEBUG_PRINTLN("Data sending failed.");
+      return false;
+    }
+  }
+
+
+  String SIM7080G::SendDataRequest(const char* topic, String value) {
+    // Créer une chaîne JSON avec la valeur spécifiée
+    String jsonMessage = String(value);
+
+    // Envoyer les commandes AT nécessaires via la communication série configurée
+    _serial->print("AT+SMPUB=\"" + String(topic) + "\",");
+    _serial->print(jsonMessage.length());
+    _serial->println(",1,1");
+    delay(100);
+
+    // Utiliser SendCommand pour envoyer la chaîne JSON
+    String command = jsonMessage;
+    String response = SendCommand(command);
+
+    // Si la réponse contient "OK" et "+SMSUB: ", les données ont été envoyées avec succès
+    if (response.indexOf("OK") != -1 && response.indexOf("+SMSUB: ") != -1) {
+      // Trouver la position de la première occurrence de "shared": dans la réponse
+      int sharedPos = response.indexOf("shared\":");
+      if (sharedPos != -1) {
+        // Extraire la sous-chaîne à partir de "shared": jusqu'à la fin
+        String jsonData = response.substring(sharedPos + 9); // 9 est la longueur de "shared\":"
+        // Trouver la position de la première occurrence de "}}" dans la sous-chaîne
+        int endPos = jsonData.indexOf("}}");
+        if (endPos != -1) {
+          // Extraire la sous-chaîne jusqu'à la position de "}}"
+          jsonData = jsonData.substring(0, endPos + 0); // Ajouter 2 pour supprimer les 2 "}}"
+        }
+        // Afficher les données JSON contenant "shared"
+        DEBUG_PRINTLN("JSON data containing 'shared': " + jsonData);
+        // Retourner les données JSON contenant "shared"
+        return jsonData;
+      }
+    }
+
+    // Si la réponse indique une erreur ou ne contient pas les données attendues, retourner une chaîne vide
+    return "Error";
+  }
+
+
 
 
 
