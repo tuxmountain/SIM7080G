@@ -1,8 +1,10 @@
-# SIM7080G Arduino Library (Under Development)
+# SIM7080G Library with Thingsboard (Under Development)
 
 ## Overview
 
-The SIM7080G Arduino library is designed to facilitate communication with the SIM7080G module, a versatile cellular module for Internet of Things (IoT) applications. Please note that this library is currently under development and may require some adaptations for use with specific Arduino or ESP boards. However, it provides a solid foundation for working with the SIM7080G module.
+The SIM7080G Arduino library is designed to facilitate communication with the SIM7080G module, a versatile cellular module for Internet of Things (IoT) applications. 
+Please note that this library is currently under development and may require some adaptations for use with specific Arduino or ESP boards. However, it provides a solid foundation for working with 
+the SIM7080G module.
 
 For more information about the SIM7080G module, refer to the manufacturer's documentation: SIMCOM SIM7080G.
 
@@ -19,13 +21,15 @@ For more information about the SIM7080G module, refer to the manufacturer's docu
 
 2. **Begin Communication**: Initialize communication with the module by calling `sim.begin(baudRate, config);`, where `baudRate` is the desired baud rate, and `config` is the configuration for the hardware serial interface.
 
-3. **Sending AT Commands**: Send AT commands to the module using the `sim.SendCommand(ATCommand)` function, where `ATCommand` is the AT command to be sent.
+3. **Connect to the network**: Send AT commands to the module using the `sim.connect(APN)` to connect and check connection
 
-4. **Receiving Responses**: Retrieve responses from the module using `sim.WaitForResponse(timeout)`, where `timeout` is the maximum time to wait for a response.
+4. **Sending AT Commands**: Send AT commands to the module using the `sim.SendCommand(ATCommand)` function, where `ATCommand` is the AT command to be sent.
 
-5. **Cellular Operations**: Perform various cellular operations such as connecting to the network, sending SMS, and more using the library functions.
+5. **Connect to MQTT**: Connect to MQTT server, specially Thingsboard with `sim.connectMQTT(parameters)`, or `sim.connectTopic(topic)` Telemetry and Attributes are already configurerd
 
-6. **Advanced Features**: Customize the library to suit your specific IoT application by modifying the code as needed.
+6. **Send Data / Request data**: You can both send Data with `sim.SendCommand(ATCommand)` or request new update on the shares attributes of Thingsboard
+
+
 
 ## Example
 
@@ -44,10 +48,6 @@ void loop() {
   // Send AT command to check network registration status
   sim.SendCommand("AT+CREG?");
   
-  // Wait for a response and print it
-  String response = sim.WaitForResponse(1000); // Wait for 1 second
-  Serial.println("Response: " + response);
   
   // Your IoT application code here
 }
-
